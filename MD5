@@ -1,0 +1,11 @@
+daebc918e90025a3f2ff1f1acc59ea7e *DESCRIPTION
+057812d2e1de8cd33138dc5ab8e7431a *LICENSE
+da9a28fd6ce3050f255ee6704aa50bec *NAMESPACE
+acf6197ff1fb412542ba8bb3efd74460 *R/receptiviti.R
+8f129c6f6d6cfc22e451b12ce8d5cda3 *R/receptiviti_status.R
+06c6965f70d72ffb51f5b83f0175cbe6 *README.md
+033ae1e422a11efead961f235abfcd54 *inst/CITATION
+8e28ed143fa9d1f5a63336c5131dfbc6 *man/receptiviti.Rd
+82a3daa4dd043a935deff385b18878a8 *tests/testthat.R
+3d8d19c07e92cca7e69db85151a5ec7a *tests/testthat/test-receptiviti.R
+ac14a06aa31b5d0048454bca95ed5695 *tests/testthat/test-receptiviti_status.R
