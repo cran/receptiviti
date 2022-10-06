@@ -35,7 +35,7 @@ output <- paste0(tempdir(), "/single_text.csv")
 
 test_that("default cache works", {
   expect_identical(
-    receptiviti("a text to score", cache = "", make_request = FALSE)$summary.word_count,
+    receptiviti(text, cache = "", make_request = FALSE)$summary.word_count,
     4L
   )
 })
@@ -51,14 +51,14 @@ test_that("invalid texts are caught", {
 
 test_that("make_request works", {
   expect_error(
-    receptiviti("a text to score", cache = FALSE, request_cache = FALSE, make_request = FALSE),
+    receptiviti(text, cache = FALSE, request_cache = FALSE, make_request = FALSE),
     "make_request is FALSE, but there are texts with no cached results",
     fixed = TRUE
   )
 })
 
 test_that("a single text works", {
-  score <- receptiviti("a text to score", output, overwrite = TRUE, cache = temp_cache, clear_cache = TRUE)
+  score <- receptiviti(text, output, overwrite = TRUE, cache = temp_cache, clear_cache = TRUE)
   expect_equal(
     score[, c("social_dynamics.clout", "disc_dimensions.bold_assertive_outgoing")],
     data.frame(social_dynamics.clout = 63.646087, disc_dimensions.bold_assertive_outgoing = 68.137361)
@@ -106,7 +106,7 @@ test_that("compression works", {
 test_that("NAs and empty texts are handled, and IDs align", {
   id <- paste0("id", rnorm(5))
   score <- receptiviti(
-    c("", "a text to score", NA, "a text to score", NA),
+    c("", text, NA, text, NA),
     id = id, cache = FALSE
   )
   expect_identical(score$id, id)
@@ -114,7 +114,7 @@ test_that("NAs and empty texts are handled, and IDs align", {
 })
 
 test_that("repeated texts works", {
-  texts <- rep("a text to score", 2000)
+  texts <- rep(text, 2000)
   scores <- receptiviti(texts, return_text = TRUE, cache = FALSE)
   expect_identical(texts, scores$text)
   expect_true(all(scores[1, -(1:2)] == scores[2000, -(1:2)]))

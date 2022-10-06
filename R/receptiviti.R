@@ -165,7 +165,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     if (basename(temp) == "working_dir") temp <- dirname(dirname(temp))
     cache <- paste0(temp, "/receptiviti_cache")
     if (!dir.exists(cache)) {
-      if (!isFALSE(getOption("receptiviti.cache_prompt")) &&
+      if (interactive() && !isFALSE(getOption("receptiviti.cache_prompt")) &&
         grepl("^(?:[Yy1]|$)", readline("Do you want to establish a default cache? [Y/n] "))) {
         dir.create(cache, FALSE)
       } else {
