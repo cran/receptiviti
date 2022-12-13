@@ -10,7 +10,8 @@ receptiviti_status <- function(url = Sys.getenv("RECEPTIVITI_URL"), key = Sys.ge
   ping <- curl_fetch_memory(url, handler)
   ping$content <- list(message = rawToChar(ping$content))
   if (substr(ping$content, 1, 1) == "{") ping$content <- fromJSON(ping$content$message)
-  ping$status_message <- if (ping$status_code == 200) {
+  ok <- ping$status_code == 200 && !length(ping$content$code)
+  ping$status_message <- if (ok) {
     ping$content$pong
   } else {
     paste0(
@@ -23,7 +24,7 @@ receptiviti_status <- function(url = Sys.getenv("RECEPTIVITI_URL"), key = Sys.ge
     )
   }
   if (verbose) {
-    message("Status: ", if (ping$status_code == 200) "OK" else "ERROR", "\nMessage: ", ping$status_message)
+    message("Status: ", if (ok) "OK" else "ERROR", "\nMessage: ", ping$status_message)
     if (include_headers) {
       ping$headers <- strsplit(rawToChar(ping$headers), "[\r\n]+", perl = TRUE)[[1]]
       json <- regexec("\\{.+\\}", ping$headers)

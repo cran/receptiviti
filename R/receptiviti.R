@@ -228,6 +228,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
         if (!is.null(id_column)) stop("id_column is specified, but text has no columns", call. = FALSE)
       }
     } else {
+      if (length(id) == 1 && id %in% colnames(text)) id_column <- id
       if (!is.null(id_column)) {
         if (id_column %in% colnames(text)) {
           id <- text[, id_column, drop = TRUE]

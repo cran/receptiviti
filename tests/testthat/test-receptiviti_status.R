@@ -5,10 +5,11 @@ test_that("failures works", {
     capture.output(receptiviti_status("example.com", key = 123, secret = 123), type = "message")[2],
     "Message: 404"
   )
-  expect_identical(
+  expect_true(grepl(
+    "Message: 401 (1411): ",
     capture.output(receptiviti_status(key = 123, secret = 123), type = "message")[2],
-    "Message: 401 (1411): Unrecognized API key pair."
-  )
+    fixed = TRUE
+  ))
 })
 
 skip_if(Sys.getenv("RECEPTIVITI_KEY") == "", "no API key")
