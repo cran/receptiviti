@@ -4,11 +4,11 @@ An R package to process text with the [Receptiviti](https://www.receptiviti.com)
 ## Installation
 Download R from [r-project.org](https://www.r-project.org), then install the package from an R console:
 
-Release ([version 0.1.3](https://CRAN.R-project.org/package=receptiviti))
+Release ([version 0.1.4](https://cran.r-project.org/package=receptiviti))
 ```R
 install.packages("receptiviti")
 ```
-Development (version 0.1.4)
+Development (version 0.1.5)
 ```R
 # install.packages("remotes")
 remotes::install_github("Receptiviti/receptiviti-r")

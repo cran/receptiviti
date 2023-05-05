@@ -1,6 +1,7 @@
 test_that("failures works", {
   expect_error(receptiviti_status(key = ""), "specify your key")
   expect_error(receptiviti_status(key = 123, secret = ""), "specify your secret")
+  expect_error(receptiviti_status("localhost", key = 123, secret = 123), "url does not appear to be valid")
   expect_identical(
     capture.output(receptiviti_status("example.com", key = 123, secret = 123), type = "message")[2],
     "Message: 404"

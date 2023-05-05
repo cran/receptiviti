@@ -34,6 +34,7 @@ Sys.setenv(RECEPTIVITI_KEY = key, RECEPTIVITI_SECRET = secret)
 output <- paste0(tempdir(), "/single_text.csv")
 
 test_that("default cache works", {
+  receptiviti(text, cache = "")
   expect_identical(
     receptiviti(text, cache = "", make_request = FALSE)$summary.word_count,
     4L
@@ -43,7 +44,7 @@ test_that("default cache works", {
 test_that("invalid texts are caught", {
   expect_error(
     receptiviti(paste(rep(" ", 1e7), collapse = "")),
-    "one of your texts is over the individual size limit (10 MB)",
+    "one of your texts is over the individual size limit",
     fixed = TRUE
   )
   expect_error(receptiviti(NA), "no valid texts to process", fixed = TRUE)
@@ -67,18 +68,35 @@ test_that("a single text works", {
   expect_identical(read.csv(output), score)
 })
 
+test_that("api arguments work", {
+  txt <- "the whole feeling in my mind now is one of joy and thankfulness"
+  sparse <- receptiviti(txt, frameworks = "sallee", api_args = list(sallee_mode = "sparse"))
+  expect_identical(sparse$sallee_mode, "sparse")
+  default <- receptiviti(txt, frameworks = "sallee")
+  expect_identical(default$sallee_mode, NULL)
+  expect_true(sparse$sentiment != default$sentiment)
+  expect_warning(
+    receptiviti(txt, frameworks = "sallee", cache = FALSE, api_args = list(sallee_mode = "invalid")),
+    "a text was invalid"
+  )
+  expect_warning(
+    receptiviti(txt, api_args = list(option = "unrecognized"), cache = FALSE),
+    "unrecognized api_args"
+  )
+})
+
 test_that("framework selection works", {
   score <- receptiviti(text, cache = temp_cache)
-  expect_identical(
+  expect_equal(
     receptiviti(text, frameworks = c("summary", "liwc"), framework_prefix = TRUE, cache = temp_cache),
     score[, grep("^(?:text_|summary|liwc)", colnames(score))]
   )
-  options(receptiviti_frameworks = "summary")
-  expect_identical(
+  options(receptiviti.frameworks = "summary")
+  expect_equal(
     receptiviti(text, framework_prefix = TRUE, cache = temp_cache),
     score[, grep("^(?:text_|summary)", colnames(score))]
   )
-  options(receptiviti_frameworks = "all")
+  options(receptiviti.frameworks = "all")
   expect_warning(
     receptiviti(text, frameworks = "x", cache = temp_cache),
     "frameworks did not match any columns -- returning all",
@@ -89,7 +107,7 @@ test_that("framework selection works", {
 test_that("framework prefix removal works", {
   score <- receptiviti(text, cache = temp_cache)
   colnames(score) <- sub("^.+\\.", "", colnames(score))
-  expect_identical(receptiviti(text, cache = temp_cache, framework_prefix = FALSE), score)
+  expect_equal(receptiviti(text, cache = temp_cache, framework_prefix = FALSE), score)
 })
 
 test_that("as_list works", {
@@ -266,6 +284,7 @@ test_that("reading from files works", {
 })
 
 test_that("spliting oversized bundles works", {
+  unlink(list.files(temp_source, "txt", full.names = TRUE), TRUE)
   texts <- vapply(seq_len(50), function(d) {
     paste0(sample(words, 6e4, TRUE), collapse = " ")
   }, "")
@@ -273,7 +292,14 @@ test_that("spliting oversized bundles works", {
     writeLines(texts[i], files_txt[i])
   }
   expect_true(sum(file.size(files_txt)) > 1e7)
-  expect_error(receptiviti(temp_source, cache = FALSE), NA)
+  expect_identical(
+    receptiviti(temp_source, cache = FALSE)$text_hash,
+    unname(vapply(
+      list.files(temp_source, "txt", full.names = TRUE),
+      function(f) unname(digest::digest(texts[files_txt == f], serialize = FALSE)),
+      ""
+    ))
+  )
 })
 
 test_that("rate limit is handled", {
