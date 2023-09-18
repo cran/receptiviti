@@ -4,11 +4,11 @@ An R package to process text with the [Receptiviti](https://www.receptiviti.com)
 ## Installation
 Download R from [r-project.org](https://www.r-project.org), then install the package from an R console:
 
-Release ([version 0.1.4](https://cran.r-project.org/package=receptiviti))
+Release ([version 0.1.5](https://cran.r-project.org/package=receptiviti))
 ```R
 install.packages("receptiviti")
 ```
-Development (version 0.1.5)
+Development (version 0.1.6)
 ```R
 # install.packages("remotes")
 remotes::install_github("Receptiviti/receptiviti-r")
@@ -23,7 +23,7 @@ library(receptiviti)
 
 - Makes requests to the Receptiviti API, working around size and rate limitations.
 - Avoids sending invalid or identical texts, or repeating requests in the same session.
-- Builds up a local database of returned results to avoid making repeat requests in the longer-term.
+- Optionally builds up a local database of returned results to avoid making repeat requests in the longer-term.
 
 ## Examples
 
@@ -36,11 +36,11 @@ multi <- receptiviti(c("first text to score", "second text"), "filename.csv")
 
 # score texts in separate files
 ## defaults to look for .txt files
-file_results <- receptiviti("./path/to/txt_folder")
+file_results <- receptiviti(dir = "./path/to/txt_folder")
 
 ## could be .csv
 file_results <- receptiviti(
-  "./path/to/csv_folder",
+  dir = "./path/to/csv_folder",
   text_column = "text", file_type = "csv"
 )
 

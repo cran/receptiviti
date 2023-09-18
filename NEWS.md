@@ -1,3 +1,18 @@
+# receptiviti 0.1.5
+
+### Features
+* Supports custom API versions and endpoints.
+
+### Improvements
+* Disables cache by default.
+* Adds `files` and `dir` arguments for clearer input.
+* Returns file names as IDs when `text_as_paths` is `TRUE`.
+* Reworks text hashing for improved cache handling.
+
+### Bug Fixes
+* Avoids unnecessary cache rewrites.
+* Fixes partial cache updating.
+
 # receptiviti 0.1.4
 
 ### Features

@@ -6,9 +6,9 @@
 \title{Receptiviti API}
 \usage{
 receptiviti(text, output = NULL, id = NULL, text_column = NULL,
-  id_column = NULL, file_type = "txt", return_text = FALSE,
-  api_args = getOption("receptiviti.api_args", list()),
-  frameworks = getOption("receptiviti.frameworks", "all"),
+  id_column = NULL, files = NULL, dir = NULL, file_type = "txt",
+  return_text = FALSE, api_args = getOption("receptiviti.api_args",
+  list()), frameworks = getOption("receptiviti.frameworks", "all"),
   framework_prefix = TRUE, as_list = FALSE, bundle_size = 1000,
   bundle_byte_limit = 7500000, collapse_lines = FALSE, retry_limit = 50,
   clear_cache = FALSE, clear_scratch_cache = TRUE, request_cache = TRUE,
@@ -19,7 +19,9 @@ receptiviti(text, output = NULL, id = NULL, text_column = NULL,
   cache_format = Sys.getenv("RECEPTIVITI_CACHE_FORMAT", "parquet"),
   key = Sys.getenv("RECEPTIVITI_KEY"),
   secret = Sys.getenv("RECEPTIVITI_SECRET"),
-  url = Sys.getenv("RECEPTIVITI_URL"))
+  url = Sys.getenv("RECEPTIVITI_URL"),
+  version = Sys.getenv("RECEPTIVITI_VERSION"),
+  endpoint = Sys.getenv("RECEPTIVITI_ENDPOINT"))
 
 receptiviti_status(url = Sys.getenv("RECEPTIVITI_URL"),
   key = Sys.getenv("RECEPTIVITI_KEY"),
@@ -29,7 +31,9 @@ receptiviti_status(url = Sys.getenv("RECEPTIVITI_URL"),
 \arguments{
 \item{text}{A character vector with text to be processed, path to a directory containing files, or a vector of file paths.
 If a single path to a directory, each file is collapsed to a single text. If a path to a file or files,
-each line or row is treated as a separate text, unless \code{collapse_lines} is \code{TRUE}.}
+each line or row is treated as a separate text, unless \code{collapse_lines} is \code{TRUE} (in which case,
+files will be read in as part of bundles at processing time, as is always the case when a directory).
+Use \code{files} to more reliably enter files, or \code{dir} to more reliably specify a directory.}
 
 \item{output}{Path to a \code{.csv} file to write results to. If this already exists, set \code{overwrite} to \code{TRUE}
 to overwrite it.}
@@ -37,6 +41,10 @@ to overwrite it.}
 \item{id}{Vector of unique IDs the same length as \code{text}, to be included in the results.}
 
 \item{text_column, id_column}{Column name of text/id, if \code{text} is a matrix-like object, or a path to a csv file.}
+
+\item{files}{A list of file paths, as alternate entry to \code{text}.}
+
+\item{dir}{A directory to search for files in, as alternate entry to \code{text}.}
 
 \item{file_type}{File extension to search for, if \code{text} is the path to a directory containing files to be read in.}
 
@@ -106,8 +114,14 @@ Defaults to \code{Sys.getenv(}\code{"RECEPTIVITI_CACHE_FORMAT")}.}
 
 \item{secret}{API Secret; defaults to \code{Sys.getenv("RECEPTIVITI_SECRET")}.}
 
-\item{url}{API endpoint; defaults to \code{Sys.getenv("RECEPTIVITI_URL")}, which defaults to
+\item{url}{API URL; defaults to \code{Sys.getenv("RECEPTIVITI_URL")}, which defaults to
 \code{"https://api.receptiviti.com/"}.}
+
+\item{version}{API version; defaults to \code{Sys.getenv("RECEPTIVITI_VERSION")}, which defaults to
+\code{"v1"}.}
+
+\item{endpoint}{API endpoint (path name after the version); defaults to \code{Sys.getenv("RECEPTIVITI_ENDPOINT")},
+which defaults to \code{"framework"}.}
 
 \item{include_headers}{Logical; if \code{TRUE}, \code{receptiviti_status}'s verbose message will include
 the HTTP headers.}
@@ -123,22 +137,24 @@ The main function to access the \href{https://www.receptiviti.com}{Receptiviti} 
 }
 \section{Cache}{
 
-By default, results for unique texts are saved in an \href{https://arrow.apache.org}{Arrow} database in the
-cache location (\code{Sys.getenv(}\code{"RECEPTIVITI_CACHE")}), and are retrieved with subsequent requests.
+If the \code{cache} argument is specified, results for unique texts are saved in an
+\href{https://arrow.apache.org}{Arrow} database in the cache location
+(\code{Sys.getenv(}\code{"RECEPTIVITI_CACHE")}), and are retrieved with subsequent requests.
 This ensures that the exact same texts are not re-sent to the API.
 This does, however, add some processing time and disc space usage.
 
-If a cache location is not specified, a default directory (\code{receptiviti_cache}) will be looked for
+If \code{cache} is \code{TRUE}, a default directory (\code{receptiviti_cache}) will be looked for
 in the system's temporary directory (which is usually the parent of \code{tempdir()}).
-If this does not exist, you will be asked if it should be created. You can disable this prompt with the
-\code{receptiviti.cache_prompt} option (\code{options(receptiviti.cache_prompt = FALSE)}).
+If this does not exist, you will be asked if it should be created.
+
+The primary cache is checked when each bundle is processed, and existing results are loaded at
+that time. When processing many bundles in parallel, and many results have been cached,
+this can cause the system to freeze and potentially crash.
+To avoid this, limit the number of cores, or disable parallel processing.
 
 The \code{cache_format} arguments (or the \code{RECEPTIVITI_CACHE_FORMAT} environment variable) can be used to adjust the format of the cache.
 
 You can use the cache independently with \code{open_database(Sys.getenv("RECEPTIVITI_CACHE"))}.
-
-You can set the \code{cache} argument to \code{FALSE} to prevent the cache from being used, which might make sense if
-you don't expect to need to reprocess it.
 
 You can also set the \code{clear_cache} argument to \code{TRUE} to clear the cache before it is used again, which may be useful
 if the cache has gotten big, or you know new results will be returned. Even if a cached result exists, it will be
@@ -154,7 +170,7 @@ and you want to process a set of text you already processed in the current R ses
 
 Another temporary cache is made when \code{in_memory} is \code{FALSE}, which is the default when processing
 in parallel (when \code{cores} is over \code{1} or \code{use_future} is \code{TRUE}). This contains
-a file for each unique bundle, which is read by as needed by the parallel workers.
+a file for each unique bundle, which is read in as needed by the parallel workers.
 }
 
 \section{Parallelization}{
@@ -164,7 +180,13 @@ a single request to the API, which is why they are limited to 1000 texts and a t
 When there is more than one bundle and either \code{cores} is greater than 1 or \code{use_future} is \code{TRUE} (and you've
 externally specified a \code{\link[future]{plan}}), bundles are processed by multiple cores.
 
-Using \code{future} also allows for progress bars to be specified externally with \code{\link[progressr]{handlers}}; see examples.
+If you have texts spread across multiple files, they can be most efficiently processed in parallel
+if each file contains a single text (potentially collapsed from multiple lines). If files contain
+multiple texts (i.e., \code{collapse_lines = FALSE}), then texts need to be read in before bundling
+in order to ensure bundles are under the length limit.
+
+Whether processing in serial or parallel, progress bars can be specified externally with
+\code{\link[progressr]{handlers}}; see examples.
 }
 
 \examples{
@@ -181,11 +203,11 @@ multi <- receptiviti(c("first text to score", "second text"), "filename.csv")
 
 # score many texts in separate files
 ## defaults to look for .txt files
-file_results <- receptiviti("./path/to/txt_folder")
+file_results <- receptiviti(dir = "./path/to/txt_folder")
 
 ## could be .csv
 file_results <- receptiviti(
-  "./path/to/csv_folder",
+  dir = "./path/to/csv_folder",
   text_column = "text", file_type = "csv"
 )
 

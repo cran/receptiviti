@@ -8,11 +8,15 @@
 #'
 #' @param text A character vector with text to be processed, path to a directory containing files, or a vector of file paths.
 #' If a single path to a directory, each file is collapsed to a single text. If a path to a file or files,
-#' each line or row is treated as a separate text, unless \code{collapse_lines} is \code{TRUE}.
+#' each line or row is treated as a separate text, unless \code{collapse_lines} is \code{TRUE} (in which case,
+#' files will be read in as part of bundles at processing time, as is always the case when a directory).
+#' Use \code{files} to more reliably enter files, or \code{dir} to more reliably specify a directory.
 #' @param output Path to a \code{.csv} file to write results to. If this already exists, set \code{overwrite} to \code{TRUE}
 #' to overwrite it.
 #' @param id Vector of unique IDs the same length as \code{text}, to be included in the results.
 #' @param text_column,id_column Column name of text/id, if \code{text} is a matrix-like object, or a path to a csv file.
+#' @param files A list of file paths, as alternate entry to \code{text}.
+#' @param dir A directory to search for files in, as alternate entry to \code{text}.
 #' @param file_type File extension to search for, if \code{text} is the path to a directory containing files to be read in.
 #' @param return_text Logical; if \code{TRUE}, \code{text} is included as the first column of the result.
 #' @param api_args A list of additional arguments to pass to the API (e.g., \code{list(sallee_mode = "sparse")}). Defaults to the
@@ -55,8 +59,12 @@
 #' @param verbose Logical; if \code{TRUE}, will show status messages.
 #' @param key API Key; defaults to \code{Sys.getenv("RECEPTIVITI_KEY")}.
 #' @param secret API Secret; defaults to \code{Sys.getenv("RECEPTIVITI_SECRET")}.
-#' @param url API endpoint; defaults to \code{Sys.getenv("RECEPTIVITI_URL")}, which defaults to
+#' @param url API URL; defaults to \code{Sys.getenv("RECEPTIVITI_URL")}, which defaults to
 #' \code{"https://api.receptiviti.com/"}.
+#' @param version API version; defaults to \code{Sys.getenv("RECEPTIVITI_VERSION")}, which defaults to
+#' \code{"v1"}.
+#' @param endpoint API endpoint (path name after the version); defaults to \code{Sys.getenv("RECEPTIVITI_ENDPOINT")},
+#' which defaults to \code{"framework"}.
 #' @param include_headers Logical; if \code{TRUE}, \code{receptiviti_status}'s verbose message will include
 #' the HTTP headers.
 #'
@@ -66,22 +74,24 @@
 #' returns a list with a named entry containing such a \code{data.frame} for each framework.
 #'
 #' @section Cache:
-#' By default, results for unique texts are saved in an \href{https://arrow.apache.org}{Arrow} database in the
-#' cache location (\code{Sys.getenv(}\code{"RECEPTIVITI_CACHE")}), and are retrieved with subsequent requests.
+#' If the \code{cache} argument is specified, results for unique texts are saved in an
+#' \href{https://arrow.apache.org}{Arrow} database in the cache location
+#' (\code{Sys.getenv(}\code{"RECEPTIVITI_CACHE")}), and are retrieved with subsequent requests.
 #' This ensures that the exact same texts are not re-sent to the API.
 #' This does, however, add some processing time and disc space usage.
 #'
-#' If a cache location is not specified, a default directory (\code{receptiviti_cache}) will be looked for
+#' If \code{cache} is \code{TRUE}, a default directory (\code{receptiviti_cache}) will be looked for
 #' in the system's temporary directory (which is usually the parent of \code{tempdir()}).
-#' If this does not exist, you will be asked if it should be created. You can disable this prompt with the
-#' \code{receptiviti.cache_prompt} option (\code{options(receptiviti.cache_prompt = FALSE)}).
+#' If this does not exist, you will be asked if it should be created.
+#'
+#' The primary cache is checked when each bundle is processed, and existing results are loaded at
+#' that time. When processing many bundles in parallel, and many results have been cached,
+#' this can cause the system to freeze and potentially crash.
+#' To avoid this, limit the number of cores, or disable parallel processing.
 #'
 #' The \code{cache_format} arguments (or the \code{RECEPTIVITI_CACHE_FORMAT} environment variable) can be used to adjust the format of the cache.
 #'
 #' You can use the cache independently with \code{open_database(Sys.getenv("RECEPTIVITI_CACHE"))}.
-#'
-#' You can set the \code{cache} argument to \code{FALSE} to prevent the cache from being used, which might make sense if
-#' you don't expect to need to reprocess it.
 #'
 #' You can also set the \code{clear_cache} argument to \code{TRUE} to clear the cache before it is used again, which may be useful
 #' if the cache has gotten big, or you know new results will be returned. Even if a cached result exists, it will be
@@ -97,7 +107,7 @@
 #'
 #' Another temporary cache is made when \code{in_memory} is \code{FALSE}, which is the default when processing
 #' in parallel (when \code{cores} is over \code{1} or \code{use_future} is \code{TRUE}). This contains
-#' a file for each unique bundle, which is read by as needed by the parallel workers.
+#' a file for each unique bundle, which is read in as needed by the parallel workers.
 #'
 #' @section Parallelization:
 #' \code{text}s are split into bundles based on the \code{bundle_size} argument. Each bundle represents
@@ -105,7 +115,13 @@
 #' When there is more than one bundle and either \code{cores} is greater than 1 or \code{use_future} is \code{TRUE} (and you've
 #' externally specified a \code{\link[future]{plan}}), bundles are processed by multiple cores.
 #'
-#' Using \code{future} also allows for progress bars to be specified externally with \code{\link[progressr]{handlers}}; see examples.
+#' If you have texts spread across multiple files, they can be most efficiently processed in parallel
+#' if each file contains a single text (potentially collapsed from multiple lines). If files contain
+#' multiple texts (i.e., \code{collapse_lines = FALSE}), then texts need to be read in before bundling
+#' in order to ensure bundles are under the length limit.
+#'
+#' Whether processing in serial or parallel, progress bars can be specified externally with
+#' \code{\link[progressr]{handlers}}; see examples.
 #' @examples
 #' \dontrun{
 #'
@@ -120,11 +136,11 @@
 #'
 #' # score many texts in separate files
 #' ## defaults to look for .txt files
-#' file_results <- receptiviti("./path/to/txt_folder")
+#' file_results <- receptiviti(dir = "./path/to/txt_folder")
 #'
 #' ## could be .csv
 #' file_results <- receptiviti(
-#'   "./path/to/csv_folder",
+#'   dir = "./path/to/csv_folder",
 #'   text_column = "text", file_type = "csv"
 #' )
 #'
@@ -148,24 +164,26 @@
 #' @importFrom future.apply future_lapply
 #' @importFrom progressr progressor
 #' @importFrom arrow read_csv_arrow write_csv_arrow schema string write_dataset open_dataset
-#' @importFrom dplyr filter compute collect select
+#' @importFrom dplyr filter compute collect select all_of
 #' @export
 
-receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_column = NULL, file_type = "txt", return_text = FALSE,
-                        api_args = getOption("receptiviti.api_args", list()), frameworks = getOption("receptiviti.frameworks", "all"),
-                        framework_prefix = TRUE, as_list = FALSE, bundle_size = 1000, bundle_byte_limit = 75e5, collapse_lines = FALSE,
-                        retry_limit = 50, clear_cache = FALSE, clear_scratch_cache = TRUE, request_cache = TRUE,
-                        cores = detectCores() - 1, use_future = FALSE, in_memory = TRUE, verbose = FALSE, overwrite = FALSE,
-                        compress = FALSE, make_request = TRUE, text_as_paths = FALSE, cache = Sys.getenv("RECEPTIVITI_CACHE"),
-                        cache_overwrite = FALSE, cache_format = Sys.getenv("RECEPTIVITI_CACHE_FORMAT", "parquet"),
-                        key = Sys.getenv("RECEPTIVITI_KEY"), secret = Sys.getenv("RECEPTIVITI_SECRET"), url = Sys.getenv("RECEPTIVITI_URL")) {
+receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_column = NULL, files = NULL, dir = NULL,
+                        file_type = "txt", return_text = FALSE, api_args = getOption("receptiviti.api_args", list()),
+                        frameworks = getOption("receptiviti.frameworks", "all"), framework_prefix = TRUE, as_list = FALSE,
+                        bundle_size = 1000, bundle_byte_limit = 75e5, collapse_lines = FALSE, retry_limit = 50, clear_cache = FALSE,
+                        clear_scratch_cache = TRUE, request_cache = TRUE, cores = detectCores() - 1, use_future = FALSE,
+                        in_memory = TRUE, verbose = FALSE, overwrite = FALSE, compress = FALSE, make_request = TRUE,
+                        text_as_paths = FALSE, cache = Sys.getenv("RECEPTIVITI_CACHE"), cache_overwrite = FALSE,
+                        cache_format = Sys.getenv("RECEPTIVITI_CACHE_FORMAT", "parquet"), key = Sys.getenv("RECEPTIVITI_KEY"),
+                        secret = Sys.getenv("RECEPTIVITI_SECRET"), url = Sys.getenv("RECEPTIVITI_URL"),
+                        version = Sys.getenv("RECEPTIVITI_VERSION"), endpoint = Sys.getenv("RECEPTIVITI_ENDPOINT")) {
   # check input
   final_res <- text_hash <- bin <- NULL
   if (!is.null(output)) {
     if (!file.exists(output) && file.exists(paste0(output, ".xz"))) output <- paste0(output, ".xz")
     if (!overwrite && file.exists(output)) stop("output file already exists; use overwrite = TRUE to overwrite it", call. = FALSE)
   }
-  if (cache == "") {
+  if (isTRUE(cache)) {
     temp <- dirname(tempdir())
     if (basename(temp) == "working_dir") temp <- dirname(dirname(temp))
     cache <- paste0(temp, "/receptiviti_cache")
@@ -175,59 +193,69 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
         dir.create(cache, FALSE)
       } else {
         options(receptiviti.cache_prompt = FALSE)
-        cache <- ""
+        cache <- FALSE
       }
     }
   }
   st <- proc.time()[[3]]
-  if (missing(text)) stop("enter text as the first argument", call. = FALSE)
+  text_as_dir <- FALSE
+  if (missing(text)) {
+    if (!is.null(dir)) {
+      if (!dir.exists(dir)) stop("entered dir does not exist", call. = FALSE)
+      text <- dir
+      text_as_dir <- TRUE
+    } else if (!is.null(files)) {
+      text <- files
+      text_as_paths <- TRUE
+    } else {
+      stop("enter text as the first argument, or use files or dir", call. = FALSE)
+    }
+  }
   if (text_as_paths) {
     if (anyNA(text)) stop("NAs are not allowed in text when being treated as file paths", call. = FALSE)
     if (!all(file.exists(text))) stop("not all of the files in text exist", call. = FALSE)
   }
   read_in <- FALSE
-  if (text_as_paths || (is.character(text) && !anyNA(text) && all(nchar(text) < 500))) {
-    if (length(text) == 1 && dir.exists(text)) {
+  if (text_as_dir || text_as_paths || (is.character(text) && !anyNA(text) && all(nchar(text) < 500))) {
+    if (text_as_dir || length(text) == 1 && dir.exists(text)) {
       if (verbose) message("reading in texts from directory: ", text, " (", round(proc.time()[[3]] - st, 4), ")")
       text_as_paths <- TRUE
-      text <- list.files(text, file_type, full.names = TRUE)
+      text <- normalizePath(list.files(text, file_type, full.names = TRUE), "/", FALSE)
     } else if (text_as_paths || all(file.exists(text))) {
-      text_as_paths <- FALSE
+      text_as_paths <- collapse_lines
       if (verbose) message("reading in texts from file list (", round(proc.time()[[3]] - st, 4), ")")
-      if (missing(id_column)) names(text) <- if (length(id) != length(text)) text else id
-      if (all(grepl("\\.csv", text, TRUE))) {
-        if (is.null(text_column)) stop("text appears to point to csv files, but text_column was not specified", call. = FALSE)
-        read_in <- TRUE
-        text <- unlist(lapply(text, function(f) {
-          if (file.exists(f)) {
+      if (!collapse_lines) {
+        if (missing(id_column)) names(text) <- if (length(id) != length(text)) text else id
+        if (all(grepl("\\.csv", text, TRUE))) {
+          if (is.null(text_column)) stop("text appears to point to csv files, but text_column was not specified", call. = FALSE)
+          read_in <- TRUE
+          text <- unlist(lapply(text, function(f) {
             d <- tryCatch(
               read_csv_arrow(f, col_select = c(text_column, id_column)),
               error = function(e) NULL
             )
             if (is.null(d)) stop("failed to read in file ", f, call. = FALSE)
-            d <- if (!is.null(id_column) && id_column %in% colnames(d)) {
+            if (!is.null(id_column) && id_column %in% colnames(d)) {
               structure(d[, text_column, drop = TRUE], names = d[, id_column, drop = TRUE])
             } else {
               d[, text_column, drop = TRUE]
             }
-            if (collapse_lines) d <- paste(d, collapse = " ")
-            d
-          } else {
-            f
-          }
-        }))
-      } else {
-        text <- unlist(lapply(text, function(f) {
-          if (file.exists(f)) {
+          }))
+        } else {
+          text <- unlist(lapply(text, function(f) {
             d <- readLines(f, warn = FALSE, skipNul = TRUE)
             if (collapse_lines) d <- paste(d, collapse = " ")
             d
-          } else {
-            f
-          }
-        }))
+          }))
+        }
+        id <- names(text)
       }
-      if (!collapse_lines) id <- names(text)
+    } else if (length(text) == 1 && dirname(text) != "." && dir.exists(dirname(text))) {
+      stop("text appears to be a directory, but it does not exist")
+    }
+    if (text_as_paths && missing(id)) {
+      id <- text
+      if (anyDuplicated(id)) id <- names(unlist(lapply(split(id, factor(id, unique(id))), seq_along)))
     }
   }
   if (is.null(dim(text))) {
@@ -260,6 +288,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     }
   }
   if (!is.character(text)) text <- as.character(text)
+  if (!length(text)) stop("no texts were found after resolving the text argument")
   if (length(id) && !is.character(id)) id <- as.character(id)
   provided_id <- FALSE
   if (length(id)) {
@@ -270,9 +299,24 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     id <- paste0("t", seq_along(text))
   }
   if (!is.numeric(retry_limit)) retry_limit <- 0
-  url <- paste0(sub("(?:/v\\d+)?/+$", "", url), "/v1/")
+  url_parts <- unlist(strsplit(regmatches(
+    url, gregexpr("/[Vv]\\d(?:/[^/]+)?", url)
+  )[[1]], "/", fixed = TRUE))
+  if (version == "") version <- if (length(url_parts) > 1) url_parts[[2]] else "v1"
+  if (endpoint == "") {
+    endpoint <- if (length(url_parts) > 2) {
+      url_parts[[3]]
+    } else {
+      if (tolower(version) == "v1") "framework" else "taxonomies"
+    }
+  }
+  url <- paste0(sub("(?:/v\\d+)?/+$", "", url), "/", version, "/")
+  full_url <- paste0(url, endpoint, "/bulk")
   if (!is.list(api_args)) api_args <- as.list(api_args)
-  args_hash <- if (length(api_args)) digest::digest(api_args, algo = "crc32") else ""
+  args_hash <- digest::digest(jsonlite::toJSON(c(
+    api_args,
+    url = full_url, key = key, secret = secret
+  ), auto_unbox = TRUE), serialize = FALSE)
 
   # ping API
   if (make_request) {
@@ -287,7 +331,8 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
   text <- data[!is.na(data$text) & data$text != "" & !duplicated(data$text), ]
   if (!nrow(text)) stop("no valid texts to process", call. = FALSE)
   if (!is.numeric(bundle_size)) bundle_size <- 1000
-  n <- ceiling(nrow(text) / min(1000, max(1, bundle_size)))
+  n_texts <- nrow(text)
+  n <- ceiling(n_texts / min(1000, max(1, bundle_size)))
   bundles <- split(text, sort(rep_len(seq_len(n), nrow(text))))
   size_fun <- if (text_as_paths) function(b) sum(file.size(b$text)) else object.size
   for (i in rev(seq_along(bundles))) {
@@ -314,13 +359,13 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
       bundles <- c(bundles[-i], unname(split(bundles[[i]], paste0(i, ".", bins))))
     }
   }
-  n <- length(bundles)
-  bundle_ref <- if (n == 1) "bundle" else "bundles"
-  if (verbose) message("prepared text in ", n, " ", bundle_ref, " (", round(proc.time()[[3]] - st, 4), ")")
+  n_bundles <- length(bundles)
+  bundle_ref <- if (n_bundles == 1) "bundle" else "bundles"
+  if (verbose) message("prepared text in ", n_bundles, " ", bundle_ref, " (", round(proc.time()[[3]] - st, 4), ")")
 
   # prepare cache
-  if (is.character(cache)) {
-    temp <- paste0(normalizePath(cache, "/", FALSE), "/")
+  if (is.character(cache) && cache != "") {
+    temp <- normalizePath(cache, "/", FALSE)
     cache <- TRUE
     if (clear_cache) unlink(temp, recursive = TRUE)
     dir.create(temp, FALSE)
@@ -330,9 +375,8 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
   }
 
   check_cache <- cache && !cache_overwrite
-  endpoint <- paste0(url, "framework/bulk")
   auth <- paste0(key, ":", secret)
-  if (missing(in_memory) && (use_future || cores > 1) && n > cores) in_memory <- FALSE
+  if (missing(in_memory) && (use_future || cores > 1) && n_bundles > cores) in_memory <- FALSE
   request_scratch <- NULL
   if (!in_memory) {
     if (verbose) message("writing ", bundle_ref, " to disc (", round(proc.time()[[3]] - st, 4), ")")
@@ -340,7 +384,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     dir.create(request_scratch, FALSE)
     if (clear_scratch_cache) on.exit(unlink(request_scratch, recursive = TRUE))
     bundles <- vapply(bundles, function(b) {
-      scratch_bundle <- paste0(request_scratch, digest(b), ".rds")
+      scratch_bundle <- paste0(request_scratch, digest::digest(b), ".rds")
       if (!file.exists(scratch_bundle)) saveRDS(b, scratch_bundle, compress = FALSE)
       scratch_bundle
     }, "", USE.NAMES = FALSE)
@@ -363,7 +407,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
       if (is.list(d)) as.data.frame(lapply(d, unpack), optional = TRUE) else d
     }
     json <- jsonlite::toJSON(unname(body), auto_unbox = TRUE)
-    temp_file <- paste0(tempdir(), "/", digest::digest(paste0(endpoint, auth, json), serialize = FALSE), ".json")
+    temp_file <- paste0(tempdir(), "/", digest::digest(json, serialize = FALSE), ".json")
     if (!request_cache) unlink(temp_file)
     res <- NULL
     if (!file.exists(temp_file)) {
@@ -379,7 +423,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
             paste("failed to create handler:", handler)
           }, call. = FALSE)
         }
-        res <- curl::curl_fetch_disk(endpoint, temp_file, handler)
+        res <- curl::curl_fetch_disk(full_url, temp_file, handler)
       } else {
         stop("make_request is FALSE, but there are texts with no cached results", call. = FALSE)
       }
@@ -396,8 +440,8 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     } else {
       list(message = rawToChar(res$content))
     }
-    if (!is.null(result$results)) {
-      result <- result$results
+    if (!is.null(result$results) || is.null(result$message)) {
+      if (!is.null(result$results)) result <- result$results
       if ("error" %in% names(result)) {
         su <- !is.na(result$error$code)
         errors <- result[su & !duplicated(result$error$code), "error"]
@@ -412,7 +456,11 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
       }
       result <- unpack(result[!names(result) %in% c("response_id", "language", "version", "error")])
       if (!is.null(result) && nrow(result)) {
-        colnames(result)[1] <- "text_hash"
+        if (colnames(result)[1] == "request_id") {
+          colnames(result)[1] <- "text_hash"
+        } else {
+          result <- cbind(text_hash = vapply(body, "[[", "", "request_id"), result)
+        }
         cbind(id = ids, bin = bin, result)
       }
     } else {
@@ -446,16 +494,16 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     if (text_as_paths) {
       if (all(grepl("\\.csv", text, TRUE))) {
         if (is.null(text_column)) stop("files appear to be csv, but no text_column was specified", call. = FALSE)
-        text <- vapply(text, function(f) paste(arrow::read_csv_arrow(f)[, text_column], collapse = " "), "")
+        text <- vapply(text, function(f) paste(arrow::read_csv_arrow(f, col_select = all_of(text_column))[[1]], collapse = " "), "")
       } else {
         text <- vapply(text, function(f) paste(readLines(f, warn = FALSE, skipNul = TRUE), collapse = " "), "")
       }
     }
-    bundle$hashes <- paste0(args_hash, vapply(text, digest::digest, "", serialize = FALSE))
+    bundle$hashes <- paste0(vapply(paste0(args_hash, text), digest::digest, "", serialize = FALSE))
     initial <- paste0("h", substr(bundle$hashes, 1, 1))
     set <- !is.na(text) & text != "" & text != "logical(0)" & !duplicated(bundle$hashes)
     res_cached <- res_fresh <- NULL
-    if (check_cache && dir.exists(paste0(temp, "bin=h"))) {
+    if (check_cache && dir.exists(paste0(temp, "/bin=h"))) {
       db <- arrow::open_dataset(temp, partitioning = arrow::schema(bin = arrow::string()), format = cache_format)
       cached <- if (!is.null(db$schema$GetFieldByName("text_hash"))) {
         tryCatch(
@@ -505,25 +553,25 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
       ))
       res$text_hash <- structure(bundle$hashes, names = bundle$id)[res$id]
     }
-    prog()
+    prog(amount = nrow(res))
     res
   }
 
   # make request(s)
-  cores <- if (is.numeric(cores)) max(1, min(length(bundles), cores)) else 1
-  call_env <- new.env(parent = globalenv())
-  prog <- progressor(along = bundles)
-  environment(doprocess) <- call_env
-  environment(request) <- call_env
-  environment(process) <- call_env
-  for (name in c(
-    "doprocess", "request", "process", "text_column", "prog", "make_request", "check_cache", "endpoint",
-    "temp", "use_future", "cores", "bundles", "cache_format", "request_cache", "auth",
-    "text_as_paths", "retry_limit", "api_args", "args_hash"
-  )) {
-    call_env[[name]] <- get(name)
-  }
+  cores <- if (is.numeric(cores)) max(1, min(n_bundles, cores)) else 1
+  prog <- progressor(n_texts)
   results <- if (use_future || cores > 1) {
+    call_env <- new.env(parent = globalenv())
+    environment(doprocess) <- call_env
+    environment(request) <- call_env
+    environment(process) <- call_env
+    for (name in c(
+      "doprocess", "request", "process", "text_column", "prog", "make_request", "check_cache", "full_url",
+      "temp", "use_future", "cores", "bundles", "cache_format", "request_cache", "auth",
+      "text_as_paths", "retry_limit", "api_args", "args_hash"
+    )) {
+      call_env[[name]] <- get(name)
+    }
     if (verbose) {
       message(
         "processing ", bundle_ref, " using ", if (use_future) "future backend" else paste(cores, "cores"),
@@ -545,25 +593,25 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
   # update cache
   if (!is.null(temp)) {
     if (verbose) message("checking cache (", round(proc.time()[[3]] - st, 4), ")")
-    initialized <- dir.exists(paste0(temp, "bin=h"))
+    initialized <- dir.exists(paste0(temp, "/bin=h"))
     if (initialized) {
       db <- arrow::open_dataset(temp, partitioning = arrow::schema(bin = arrow::string()), format = cache_format)
       if (db$num_cols != (ncol(final_res) - 1)) {
         if (verbose) message("clearing existing cache since columns did not align (", round(proc.time()[[3]] - st, 4), ")")
-        if (clear_cache) unlink(temp, recursive = TRUE)
         dir.create(temp, FALSE)
         initialized <- FALSE
       }
     }
+    exclude <- c("id", names(api_args))
     if (!initialized) {
-      su <- !colnames(final_res) %in% c("id", names(api_args))
+      su <- !colnames(final_res) %in% exclude
       if (sum(su) > 2) {
         initial <- final_res[1, su]
         initial$text_hash <- ""
         initial$bin <- "h"
         initial[, !colnames(initial) %in% c(
-          "bin", "text_hash", "summary.word_count", "summary.sentence_count"
-        )] <- .1
+          "summary.word_count", "summary.sentence_count"
+        ) & !vapply(initial, is.character, TRUE)] <- .1
         initial <- rbind(initial, final_res[, colnames(initial)])
         if (verbose) {
           message(
@@ -575,13 +623,13 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
       }
     } else {
       fresh <- final_res[
-        !duplicated(final_res$text_hash), !colnames(final_res) %in% c("text_hash", names(api_args)),
+        !duplicated(final_res$text_hash), !colnames(final_res) %in% names(api_args),
         drop = FALSE
       ]
       cached <- dplyr::filter(db, bin %in% unique(fresh$bin), text_hash %in% fresh$text_hash)
       if (!any(dim(cached) == 0) || nrow(cached) != nrow(fresh)) {
         uncached_hashes <- if (nrow(cached)) {
-          !fresh$text_hash %in% dplyr::collect(dplyr::select(cached, text_hash))[, 1]
+          !fresh$text_hash %in% dplyr::collect(dplyr::select(cached, text_hash))[[1]]
         } else {
           rep(TRUE, nrow(fresh))
         }
@@ -592,7 +640,10 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
               if (sum(uncached_hashes) > 1) "s", " (", round(proc.time()[[3]] - st, 4), ")"
             )
           }
-          arrow::write_dataset(fresh[uncached_hashes, ], temp, partitioning = "bin", format = cache_format)
+          arrow::write_dataset(
+            fresh[uncached_hashes, !colnames(fresh) %in% exclude], temp,
+            partitioning = "bin", format = cache_format
+          )
         }
       }
     }
