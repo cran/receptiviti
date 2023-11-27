@@ -2,6 +2,7 @@
 
 export(receptiviti)
 export(receptiviti_status)
+importFrom(arrow,CsvReadOptions)
 importFrom(arrow,open_dataset)
 importFrom(arrow,read_csv_arrow)
 importFrom(arrow,schema)
@@ -28,4 +29,5 @@ importFrom(parallel,parLapply)
 importFrom(parallel,parLapplyLB)
 importFrom(parallel,stopCluster)
 importFrom(progressr,progressor)
+importFrom(stringi,stri_enc_detect)
 importFrom(utils,object.size)

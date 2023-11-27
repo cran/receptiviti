@@ -8,6 +8,7 @@ Sys.setenv(RECEPTIVITI_KEY = 123, RECEPTIVITI_SECRET = 123)
 on.exit(Sys.setenv(RECEPTIVITI_KEY = key, RECEPTIVITI_SECRET = secret))
 
 test_that("invalid inputs are caught", {
+  expect_error(receptiviti(text, url = "http://localhost:0/not_served"), "URL is unreachable", fixed = TRUE)
   expect_error(receptiviti(), "enter text as the first argument", fixed = TRUE)
   expect_error(receptiviti("", key = ""), "specify your key", fixed = TRUE)
   expect_error(receptiviti("", key = 123), "401 (1411): ", fixed = TRUE)
@@ -261,11 +262,15 @@ test_that("reading from files works", {
 
   expect_error(
     receptiviti(temp_source, file_type = "csv", cache = temp_cache),
-    "files appear to be csv, but no text_column was specified",
+    "text appears to point to csv files, but text_column was not specified",
     fixed = TRUE
   )
   arrow::write_csv_arrow(data.frame(text = NA), paste0(temp_source, "!.csv"))
-  csv_directory <- receptiviti(temp_source, text_column = "text", file_type = "csv", cache = temp_cache)
+  csv_directory <- receptiviti(
+    temp_source,
+    text_column = "text", file_type = "csv", cache = temp_cache,
+    bundle_size = 25, collapse_lines = TRUE
+  )
   expect_true(all(initial$text_hash %in% csv_directory$text_hash))
   csv_directory <- csv_directory[!is.na(csv_directory$text_hash), ]
   rownames(csv_directory) <- csv_directory$text_hash
@@ -286,30 +291,15 @@ test_that("reading from files works", {
   alt_id <- receptiviti(file_csv, text_column = "text", id_column = "id", cache = temp_cache)
   expect_identical(alt_id, receptiviti(csv_data, text_column = "text", id = "id", cache = temp_cache))
   expect_identical(alt_id, receptiviti(csv_data$text, id = csv_data$id, cache = temp_cache))
-})
 
-test_that("spliting oversized bundles works", {
-  unlink(list.files(temp_source, "txt", full.names = TRUE), TRUE)
-  texts <- vapply(seq_len(50), function(d) {
-    paste0(sample(words, 6e4, TRUE), collapse = " ")
-  }, "")
-  for (i in seq_along(texts)) {
-    writeLines(texts[i], files_txt[i])
-  }
-  expect_true(sum(file.size(files_txt)) > 1e7)
-  arg_hash <- digest::digest(jsonlite::toJSON(list(
-    url = paste0(Sys.getenv("RECEPTIVITI_URL"), "v1/framework/bulk"),
-    key = key,
-    secret = secret
-  ), auto_unbox = TRUE), serialize = FALSE)
-  expect_identical(
-    receptiviti(temp_source)$text_hash,
-    unname(vapply(
-      list.files(temp_source, "txt", full.names = TRUE),
-      function(f) unname(digest::digest(paste0(arg_hash, texts[files_txt == f]), serialize = FALSE)),
-      ""
-    ))
-  )
+  first_res <- receptiviti(texts[1], cache = temp_cache)
+  writeBin(iconv(texts[1], "utf-8", "utf-16", toRaw = TRUE)[[1]], file_txt, useBytes = TRUE)
+  expect_error(suppressWarnings(receptiviti(file_txt, encoding = "utf-8")), "no texts were found")
+  expect_equal(receptiviti(file_txt)[, -1], first_res)
+
+  writeBin(iconv(paste0("text\n", texts[1], "\n"), "utf-8", "utf-16", toRaw = TRUE)[[1]], file_csv, useBytes = TRUE)
+  expect_error(suppressWarnings(receptiviti(file_csv, text_column = "text", encoding = "utf-8")), "failed to read in")
+  expect_equal(receptiviti(file_csv, text_column = "text")[, -1], first_res)
 })
 
 test_that("rate limit is handled", {
@@ -326,19 +316,38 @@ test_that("rate limit is handled", {
   )
 })
 
-skip_if(tryCatch(
-  {
-    receptiviti_status(Sys.getenv("RECEPTIVITI_URL_TEST"))
-    FALSE
-  },
-  error = function(e) TRUE
-), "test API is not reachable")
+url <- Sys.getenv("RECEPTIVITI_URL_TEST")
+skip_if(is.null(receptiviti_status(url)), "test API is not reachable")
+
+key <- Sys.getenv("RECEPTIVITI_KEY_TEST")
+secret <- Sys.getenv("RECEPTIVITI_SECRET_TEST")
+
+test_that("spliting oversized bundles works", {
+  unlink(list.files(temp_source, "txt", full.names = TRUE), TRUE)
+  texts <- vapply(seq_len(50), function(d) {
+    paste0(sample(words, 6e4, TRUE), collapse = " ")
+  }, "")
+  for (i in seq_along(texts)) {
+    writeLines(texts[i], files_txt[i])
+  }
+  expect_true(sum(file.size(files_txt)) > 1e7)
+  arg_hash <- digest::digest(jsonlite::toJSON(list(
+    url = paste0(url, "v1/framework/bulk"), key = key, secret = secret
+  ), auto_unbox = TRUE), serialize = FALSE)
+  expect_identical(
+    receptiviti(temp_source, url = url, key = key, secret = secret)$text_hash,
+    unname(vapply(
+      list.files(temp_source, "txt", full.names = TRUE),
+      function(f) unname(digest::digest(paste0(arg_hash, texts[files_txt == f]), serialize = FALSE)),
+      ""
+    ))
+  )
+})
 
 test_that("different versions and endpoints are handled", {
   res <- receptiviti(
-    texts,
-    cache = FALSE, version = "v2", endpoint = "taxonomies", url = Sys.getenv("RECEPTIVITI_URL_TEST"),
-    key = Sys.getenv("RECEPTIVITI_KEY_TEST"), secret = Sys.getenv("RECEPTIVITI_SECRET_TEST")
+    "a text to score",
+    url = paste0(Sys.getenv("RECEPTIVITI_URL_TEST"), "v2/taxonomies"), key = key, secret = secret
   )
-  expect_true(nrow(res) == 50)
+  expect_true(nrow(res) == 1)
 })

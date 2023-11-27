@@ -1,7 +1,7 @@
 Package: receptiviti
 Type: Package
 Title: Text Analysis Through the 'Receptiviti' API
-Version: 0.1.5
+Version: 0.1.6
 Authors@R: c(
     person("Receptiviti Inc.", role = c("fnd", "cph")),
     person("Kent", "English", role = "cre", email = "kenglish@receptiviti.com"),
@@ -10,7 +10,8 @@ Authors@R: c(
 Description: Send text to the <https://www.receptiviti.com> API to be scored
     by all available frameworks.
 License: MIT + file LICENSE
-Imports: curl, jsonlite, digest, arrow, dplyr, future.apply, progressr
+Imports: curl, jsonlite, digest, arrow (>= 9.0.0), dplyr, future.apply,
+        progressr, stringi
 Suggests: testthat (>= 3.0.0), knitr, rmarkdown, future
 Config/testthat/edition: 3
 RoxygenNote: 7.2.3
@@ -18,10 +19,10 @@ URL: https://receptiviti.github.io/receptiviti-r/,
         https://github.com/Receptiviti/receptiviti-r
 BugReports: https://github.com/Receptiviti/receptiviti-r/issues
 NeedsCompilation: no
-Packaged: 2023-09-18 12:07:01 UTC; Admin
+Packaged: 2023-11-27 14:46:57 UTC; Admin
 Author: Receptiviti Inc. [fnd, cph],
   Kent English [cre],
   Micah Iserman [aut, ctr]
 Maintainer: Kent English <kenglish@receptiviti.com>
 Repository: CRAN
-Date/Publication: 2023-09-18 13:20:02 UTC
+Date/Publication: 2023-11-27 15:30:02 UTC

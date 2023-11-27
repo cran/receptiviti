@@ -7,8 +7,9 @@
 \usage{
 receptiviti(text, output = NULL, id = NULL, text_column = NULL,
   id_column = NULL, files = NULL, dir = NULL, file_type = "txt",
-  return_text = FALSE, api_args = getOption("receptiviti.api_args",
-  list()), frameworks = getOption("receptiviti.frameworks", "all"),
+  encoding = NULL, return_text = FALSE,
+  api_args = getOption("receptiviti.api_args", list()),
+  frameworks = getOption("receptiviti.frameworks", "all"),
   framework_prefix = TRUE, as_list = FALSE, bundle_size = 1000,
   bundle_byte_limit = 7500000, collapse_lines = FALSE, retry_limit = 50,
   clear_cache = FALSE, clear_scratch_cache = TRUE, request_cache = TRUE,
@@ -47,6 +48,9 @@ to overwrite it.}
 \item{dir}{A directory to search for files in, as alternate entry to \code{text}.}
 
 \item{file_type}{File extension to search for, if \code{text} is the path to a directory containing files to be read in.}
+
+\item{encoding}{Encoding of file(s) to be read in. If not specified, this will be detected, which can fail,
+resulting in mis-encoded characters; for best (and fasted) results, specify encoding.}
 
 \item{return_text}{Logical; if \code{TRUE}, \code{text} is included as the first column of the result.}
 

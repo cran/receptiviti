@@ -8,10 +8,14 @@ receptiviti_status <- function(url = Sys.getenv("RECEPTIVITI_URL"), key = Sys.ge
   handler <- new_handle(httpauth = 1, userpwd = paste0(key, ":", secret))
   url <- paste0(
     if (!grepl("http", tolower(url), fixed = TRUE)) "https://",
-    sub("/[Vv]\\d(?:/.*)?$|/+$", "", url), "/v1/ping"
+    sub("/+[Vv]\\d+(?:/.*)?$|/+$", "", url), "/v1/ping"
   )
   if (!grepl("^https?://[^.]+[.:][^.]", url, TRUE)) stop("url does not appear to be valid: ", url)
-  ping <- curl_fetch_memory(url, handler)
+  ping <- tryCatch(curl_fetch_memory(url, handler), error = function(e) NULL)
+  if (is.null(ping)) {
+    if (verbose) message("Status: ERROR\nMessage: URL is unreachable")
+    invisible(return())
+  }
   ping$content <- list(message = rawToChar(ping$content))
   if (substr(ping$content, 1, 1) == "{") ping$content <- fromJSON(ping$content$message)
   ok <- ping$status_code == 200 && !length(ping$content$code)
