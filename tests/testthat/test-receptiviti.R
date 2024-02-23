@@ -4,15 +4,13 @@ secret <- Sys.getenv("RECEPTIVITI_SECRET")
 text <- "a text to score"
 temp <- normalizePath(tempdir(), "/")
 temp_cache <- paste0(temp, "/temp_cache")
-Sys.setenv(RECEPTIVITI_KEY = 123, RECEPTIVITI_SECRET = 123)
-on.exit(Sys.setenv(RECEPTIVITI_KEY = key, RECEPTIVITI_SECRET = secret))
 
 test_that("invalid inputs are caught", {
-  expect_error(receptiviti(text, url = "http://localhost:0/not_served"), "URL is unreachable", fixed = TRUE)
+  expect_error(receptiviti(text, url = "http://localhost:0/not_served", key = 123, secret = 123), "URL is unreachable", fixed = TRUE)
   expect_error(receptiviti(), "enter text as the first argument", fixed = TRUE)
   expect_error(receptiviti("", key = ""), "specify your key", fixed = TRUE)
-  expect_error(receptiviti("", key = 123), "401 (1411): ", fixed = TRUE)
-  expect_error(receptiviti("", secret = ""), "specify your secret", fixed = TRUE)
+  expect_error(receptiviti("", key = 123, secret = 123), "401 (1411): ", fixed = TRUE)
+  expect_error(receptiviti("", key = 123, secret = ""), "specify your secret", fixed = TRUE)
   expect_error(receptiviti(matrix(0, 2, 2)), "text has dimensions, but no text_column column", fixed = TRUE)
   expect_error(receptiviti("", id = 1:2), "id is not the same length as text", fixed = TRUE)
   expect_error(receptiviti(c("", ""), id = c(1, 1)), "id contains duplicate values", fixed = TRUE)
@@ -307,11 +305,11 @@ test_that("rate limit is handled", {
     paste0(sample(words, 5, TRUE), collapse = " ")
   }, "")
   expect_error(
-    receptiviti(texts, bundle_size = 1, request_cache = FALSE, cores = 1, retry_limit = 0),
+    receptiviti(texts, bundle_size = 1, request_cache = FALSE, retry_limit = 0),
     "Rate limit exceeded"
   )
   expect_identical(
-    receptiviti(texts, bundle_size = 1, request_cache = FALSE, cores = 1)$summary.word_count,
+    receptiviti(texts, bundle_size = 1, request_cache = FALSE)$summary.word_count,
     rep(5L, 50)
   )
 })

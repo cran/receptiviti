@@ -163,10 +163,7 @@
 #' @importFrom utils object.size
 #' @importFrom digest digest
 #' @importFrom parallel detectCores makeCluster clusterExport parLapplyLB parLapply stopCluster
-#' @importFrom future.apply future_lapply
 #' @importFrom progressr progressor
-#' @importFrom arrow read_csv_arrow write_csv_arrow schema string write_dataset open_dataset CsvReadOptions
-#' @importFrom dplyr filter compute collect select all_of
 #' @importFrom stringi stri_enc_detect
 #' @export
 
@@ -187,6 +184,9 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     if (!overwrite && file.exists(output)) stop("output file already exists; use overwrite = TRUE to overwrite it", call. = FALSE)
   }
   if (isTRUE(cache)) {
+    if (!requireNamespace("arrow", quietly = TRUE)) {
+      stop("install the `arrow` package to enable the cache", call. = FALSE)
+    }
     temp <- dirname(tempdir())
     if (basename(temp) == "working_dir") temp <- dirname(dirname(temp))
     cache <- paste0(temp, "/receptiviti_cache")
@@ -199,6 +199,9 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
         cache <- FALSE
       }
     }
+  }
+  if (use_future && !requireNamespace("future.apply", quietly = TRUE)) {
+    stop("install the `future.apply` package to use future", call. = FALSE)
   }
   st <- proc.time()[[3]]
   text_as_dir <- FALSE
@@ -241,7 +244,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
           if (is.null(text_column)) stop("text appears to point to csv files, but text_column was not specified", call. = FALSE)
           read_in <- TRUE
           text <- unlist(lapply(text, function(f) {
-            d <- tryCatch(read_csv_arrow(f, read_options = CsvReadOptions$create(
+            d <- tryCatch(arrow::read_csv_arrow(f, read_options = arrow::CsvReadOptions$create(
               encoding = handle_encoding(f)
             ), col_select = c(text_column, id_column)), error = function(e) NULL)
             if (is.null(d)) stop("failed to read in file ", f, call. = FALSE)
@@ -515,7 +518,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
           tryCatch(
             paste(arrow::read_csv_arrow(f, read_options = arrow::CsvReadOptions$create(
               encoding = handle_encoding(f)
-            ), col_select = all_of(text_column))[[1]], collapse = " "),
+            ), col_select = dplyr::all_of(text_column))[[1]], collapse = " "),
             error = function(e) stop("failed to read in file ", f, call. = FALSE)
           )
         }, "")
@@ -704,7 +707,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
     dir.create(dirname(output), FALSE, TRUE)
     if (overwrite) unlink(output)
     if (compress) output <- xzfile(output)
-    write_csv_arrow(final_res, file = output)
+    arrow::write_csv_arrow(final_res, file = output)
   }
 
   if (is.character(frameworks) && frameworks[1] != "all") {

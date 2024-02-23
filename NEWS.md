@@ -1,3 +1,8 @@
+# receptiviti 0.1.7
+
+### Improvements
+* Suggests rather than imports optional packages (`arrow` and `dplyr` for the cache, and `future.apply` for use with Future).
+
 # receptiviti 0.1.6
 
 ### Improvements
