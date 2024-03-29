@@ -1,12 +1,12 @@
-b8500b94e943f71c60192812bad9f51b *DESCRIPTION
+fcfa18c028069acdf011b13a2ca34ce9 *DESCRIPTION
 057812d2e1de8cd33138dc5ab8e7431a *LICENSE
 82631e80a7f5fa3a4bb78a269c99dd9f *NAMESPACE
-0cee70e29caf1edd838c122550ad4556 *NEWS.md
-5c8ac8d6c03ea60b32af404f727110c4 *R/receptiviti.R
+ef9da51f1d85ef54820782e0fd5c2505 *NEWS.md
+808e6fd254ca379fbdfc9a94cb02571e *R/receptiviti.R
 cc74b61d85a7e9d733e7ab28e046ffab *R/receptiviti_status.R
-6458af9fd1b40d97daad8a4115ae4716 *README.md
+f8bdf73825a3476e94ce1bec4bb99254 *README.md
 033ae1e422a11efead961f235abfcd54 *inst/CITATION
 07b76cf614ac76620d3940982c9d34da *man/receptiviti.Rd
 82a3daa4dd043a935deff385b18878a8 *tests/testthat.R
 54b4c11a0d1a3436ff3520c0c8a3a24f *tests/testthat/test-receptiviti.R
-6310eeeb6aad0d214b0f1c663b825866 *tests/testthat/test-receptiviti_status.R
+834591901370bb6cdc33e257b7b7c5ce *tests/testthat/test-receptiviti_status.R

@@ -224,7 +224,7 @@ receptiviti <- function(text, output = NULL, id = NULL, text_column = NULL, id_c
   read_in <- FALSE
   handle_encoding <- function(file) {
     if (is.null(encoding)) {
-      unlist(stringi::stri_enc_detect(readBin(file, "raw", 200))[[1]])[[1]]
+      unlist(stringi::stri_enc_detect(readBin(file, "raw", file.size(file)))[[1]])[[1]]
     } else {
       encoding
     }

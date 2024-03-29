@@ -1,3 +1,8 @@
+# receptiviti 0.1.8
+
+### Improvements
+* Makes encoding detection more reliable.
+
 # receptiviti 0.1.7
 
 ### Improvements
