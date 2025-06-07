@@ -5,17 +5,17 @@
 \alias{receptiviti_status}
 \title{Receptiviti API}
 \usage{
-receptiviti(text, output = NULL, id = NULL, text_column = NULL,
+receptiviti(text = NULL, output = NULL, id = NULL, text_column = NULL,
   id_column = NULL, files = NULL, dir = NULL, file_type = "txt",
-  encoding = NULL, return_text = FALSE,
-  api_args = getOption("receptiviti.api_args", list()),
-  frameworks = getOption("receptiviti.frameworks", "all"),
+  encoding = NULL, return_text = FALSE, context = "written",
+  custom_context = FALSE, api_args = getOption("receptiviti.api_args",
+  list()), frameworks = getOption("receptiviti.frameworks", "all"),
   framework_prefix = TRUE, as_list = FALSE, bundle_size = 1000,
   bundle_byte_limit = 7500000, collapse_lines = FALSE, retry_limit = 50,
   clear_cache = FALSE, clear_scratch_cache = TRUE, request_cache = TRUE,
-  cores = detectCores() - 1, use_future = FALSE, in_memory = TRUE,
-  verbose = FALSE, overwrite = FALSE, compress = FALSE,
-  make_request = TRUE, text_as_paths = FALSE,
+  cores = detectCores() - 1, collect_results = TRUE, use_future = FALSE,
+  in_memory = TRUE, verbose = FALSE, overwrite = FALSE,
+  compress = FALSE, make_request = TRUE, text_as_paths = FALSE,
   cache = Sys.getenv("RECEPTIVITI_CACHE"), cache_overwrite = FALSE,
   cache_format = Sys.getenv("RECEPTIVITI_CACHE_FORMAT", "parquet"),
   key = Sys.getenv("RECEPTIVITI_KEY"),
@@ -54,8 +54,14 @@ resulting in mis-encoded characters; for best (and fasted) results, specify enco
 
 \item{return_text}{Logical; if \code{TRUE}, \code{text} is included as the first column of the result.}
 
+\item{context}{Name of the analysis context.}
+
+\item{custom_context}{Name of a custom context (as listed by \code{\link{receptiviti_norming}}),
+or \code{TRUE} if \code{context} is the name of a custom context.}
+
 \item{api_args}{A list of additional arguments to pass to the API (e.g., \code{list(sallee_mode = "sparse")}). Defaults to the
-\code{receptiviti.api_args} option.}
+\code{receptiviti.api_args} option. Custom norming contexts can be established with the \code{\link{receptiviti_norming}}
+function, then referred to here with the \code{custom_context} argument (only available in API V2).}
 
 \item{frameworks}{A vector of frameworks to include results from. Texts are always scored with all available framework --
 this just specifies what to return. Defaults to \code{all}, to return all scored frameworks. Can be set by the
@@ -85,6 +91,8 @@ the request has been made.}
 from a previous identical request.}
 
 \item{cores}{Number of CPU cores to split bundles across, if there are multiple bundles. See the Parallelization section.}
+
+\item{collect_results}{Logical; if \code{FALSE}, will not retain bundle results in memory for return.}
 
 \item{use_future}{Logical; if \code{TRUE}, uses a \code{future} back-end to process bundles, in which case,
 parallelization can be controlled with the \code{\link[future]{plan}} function (e.g., \code{plan("multisession")}
@@ -131,7 +139,8 @@ which defaults to \code{"framework"}.}
 the HTTP headers.}
 }
 \value{
-A \code{data.frame} with columns for \code{text} (if \code{return_text} is \code{TRUE}; the originally entered text),
+Nothing if \code{collect_results} is \code{FALSE}.
+Otherwise, a \code{data.frame} with columns for \code{text} (if \code{return_text} is \code{TRUE}; the originally entered text),
 \code{id} (if one was provided), \code{text_hash} (the MD5 hash of the text), a column each for relevant entries in \code{api_args},
 and scores from each included framework (e.g., \code{summary.word_count} and \code{liwc.i}). If \code{as_list} is \code{TRUE},
 returns a list with a named entry containing such a \code{data.frame} for each framework.
@@ -139,6 +148,38 @@ returns a list with a named entry containing such a \code{data.frame} for each f
 \description{
 The main function to access the \href{https://www.receptiviti.com}{Receptiviti} API.
 }
+\section{Request Process}{
+
+This function (along with the internal \code{manage_request} function) handles texts and results in several steps:
+\enumerate{
+  \item Prepare bundles (split \code{text} into <= \code{bundle_size} and <= \code{bundle_byte_limit} bundles).
+  \enumerate{
+    \item If \code{text} points to a directory or list of files, these will be read in later.
+    \item If \code{in_memory} is \code{FALSE}, bundles are written to a temporary location,
+          and read back in when the request is made.
+  }
+  \item Get scores for texts within each bundle.
+  \enumerate{
+    \item If texts are paths, or \code{in_memory} is \code{FALSE}, will load texts.
+    \item If \code{cache} is set, will skip any texts with cached scores.
+    \item If \code{request_cache} is \code{TRUE}, will check for a cached request.
+    \item If any texts need scoring and \code{make_request} is \code{TRUE}, will send unscored texts to the API.
+  }
+  \item If a request was made and \code{request_cache} is set, will cache the response.
+  \item If \code{cache} is set, will write bundle scores to the cache.
+  \item After requests are made, if \code{cache} is set, will defragment the cache
+        (combine bundle results within partitions).
+  \item If \code{collect_results} is \code{TRUE}, will prepare results:
+  \enumerate{
+    \item Will realign results with \code{text} (and \code{id} if provided).
+    \item If \code{output} is specified, will write realigned results to it.
+    \item Will drop additional columns (such as \code{custom} and \code{id} if not provided).
+    \item If \code{framework} is specified, will use it to select columns of the results.
+    \item Returns results.
+  }
+}
+}
+
 \section{Cache}{
 
 If the \code{cache} argument is specified, results for unique texts are saved in an
@@ -216,7 +257,8 @@ file_results <- receptiviti(
 )
 
 # score many texts from a file, with a progress bar
-## set up cores and progress bar (only necessary if you want the progress bar)
+## set up cores and progress bar
+## (only necessary if you want the progress bar)
 future::plan("multisession")
 progressr::handlers(global = TRUE)
 progressr::handlers("progress")

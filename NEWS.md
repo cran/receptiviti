@@ -1,3 +1,20 @@
+# receptiviti 0.1.9
+
+### Features
+* Adds `collect_results` option for large requests.
+* Adds framework checking and listing functionality.
+* Adds custom norming context creation functionality.
+* Adds support for V2 of the API.
+
+### Improvements
+* Improves cache performance.
+* Adds support for compressed files.
+* Validates `version` and `endpoint` arguments.
+
+### Bug Fixes
+* Avoids failure on total bundle failure.
+* Avoids overwriting existing cache results within overlapping bins on update.
+
 # receptiviti 0.1.8
 
 ### Improvements
