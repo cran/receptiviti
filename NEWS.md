@@ -1,4 +1,9 @@
-# receptiviti 0.1.9
+# receptiviti 0.2.1
+
+### Features
+* Adds `version` argument to `receptiviti_status`.
+
+# receptiviti 0.2.0
 
 ### Features
 * Adds `collect_results` option for large requests.

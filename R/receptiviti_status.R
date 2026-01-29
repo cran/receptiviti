@@ -5,12 +5,17 @@ receptiviti_status <- function(
   url = Sys.getenv("RECEPTIVITI_URL"),
   key = Sys.getenv("RECEPTIVITI_KEY"),
   secret = Sys.getenv("RECEPTIVITI_SECRET"),
+  version = Sys.getenv("RECEPTIVITI_VERSION"),
   verbose = TRUE,
   include_headers = FALSE
 ) {
   params <- handle_request_params(url, key, secret)
+  url_parts <- parse_url(url, version)
   ping <- tryCatch(
-    curl_fetch_memory(paste0(params$url, "/v1/ping"), params$handler),
+    curl_fetch_memory(
+      paste0(params$url, "/", url_parts$version, "/ping"),
+      params$handler
+    ),
     error = function(e) NULL
   )
   if (is.null(ping)) {
@@ -100,5 +105,38 @@ handle_request_params <- function(url, key, secret) {
   list(
     url = url,
     handler = new_handle(httpauth = 1, userpwd = paste0(key, ":", secret))
+  )
+}
+
+parse_url <- function(url, version = "", endpoint = "") {
+  url_parts <- unlist(strsplit(
+    regmatches(
+      url,
+      gregexpr("/[Vv]\\d+(?:/[^/]+)?", url)
+    )[[1]],
+    "/",
+    fixed = TRUE
+  ))
+  if (version == "")
+    version <- if (length(url_parts) > 1) url_parts[[2]] else "v1"
+  version <- tolower(version)
+  if (version == "" || !grepl("^v\\d+$", version)) {
+    stop("invalid version: ", version, call. = FALSE)
+  }
+  if (endpoint == "") {
+    endpoint <- if (length(url_parts) > 2) {
+      url_parts[[3]]
+    } else {
+      if (tolower(version) == "v1") "framework" else "analyze"
+    }
+  }
+  endpoint <- sub("^.*/", "", tolower(endpoint))
+  if (endpoint == "" || grepl("[^a-z]", endpoint)) {
+    stop("invalid endpoint: ", endpoint, call. = FALSE)
+  }
+  list(
+    url = sub("/+[Vv]\\d+(/.*)?$|/+$", "", url),
+    version = version,
+    endpoint = endpoint
   )
 }

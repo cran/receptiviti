@@ -26,7 +26,8 @@ receptiviti(text = NULL, output = NULL, id = NULL, text_column = NULL,
 
 receptiviti_status(url = Sys.getenv("RECEPTIVITI_URL"),
   key = Sys.getenv("RECEPTIVITI_KEY"),
-  secret = Sys.getenv("RECEPTIVITI_SECRET"), verbose = TRUE,
+  secret = Sys.getenv("RECEPTIVITI_SECRET"),
+  version = Sys.getenv("RECEPTIVITI_VERSION"), verbose = TRUE,
   include_headers = FALSE)
 }
 \arguments{

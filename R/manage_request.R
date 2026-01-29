@@ -221,34 +221,15 @@ manage_request <- function(
     full_url <- url
     request_cache <- FALSE
   } else {
-    url_parts <- unlist(strsplit(
-      regmatches(
-        url,
-        gregexpr("/[Vv]\\d+(?:/[^/]+)?", url)
-      )[[1]],
-      "/",
-      fixed = TRUE
-    ))
-    if (version == "")
-      version <- if (length(url_parts) > 1) url_parts[[2]] else "v1"
-    version <- tolower(version)
-    if (version == "" || !grepl("^v\\d+$", version)) {
-      stop("invalid version: ", version, call. = FALSE)
-    }
-    if (endpoint == "") {
-      endpoint <- if (length(url_parts) > 2) {
-        url_parts[[3]]
-      } else {
-        if (tolower(version) == "v1") "framework" else "analyze"
-      }
-    }
-    endpoint <- sub("^.*/", "", tolower(endpoint))
-    if (endpoint == "" || grepl("[^a-z]", endpoint)) {
-      stop("invalid endpoint: ", endpoint, call. = FALSE)
-    }
-    url <- paste0(sub("/+[Vv]\\d+(/.*)?$|/+$", "", url), "/", version, "/")
+    parsed_url <- parse_url(url, version, endpoint)
+    url <- parsed_url$url
+    version <- parsed_url$version
+    endpoint <- parsed_url$endpoint
     full_url <- paste0(
       url,
+      "/",
+      version,
+      "/",
       endpoint,
       if (version == "v1") "/bulk" else paste0("/", context)
     )
@@ -287,7 +268,13 @@ manage_request <- function(
   # ping API
   if (make_request) {
     if (verbose) message("pinging API (", round(proc.time()[[3]] - st, 4), ")")
-    ping <- receptiviti_status(url, key, secret, verbose = FALSE)
+    ping <- receptiviti_status(
+      url,
+      key,
+      secret,
+      version,
+      verbose = FALSE
+    )
     if (is.null(ping)) stop("URL is unreachable", call. = FALSE)
     if (ping$status_code != 200) stop(ping$status_message, call. = FALSE)
   }
@@ -457,30 +444,33 @@ manage_request <- function(
             result$error$message
           )
         } else {
-          su <- !is.na(result$error$code)
-          errors <- if (is.data.frame(result)) {
-            result[su & !duplicated(result$error$code), "error"]
+          if (is.data.frame(result)) {
+            warning(
+              "text-level errors present: ",
+              jsonlite::toJSON(result$error, pretty = TRUE)
+            )
           } else {
-            result$error
-          }
-          warning(
-            if (sum(su) > 1) "some texts were invalid: " else
-              "a text was invalid: ",
-            paste(
-              do.call(
-                paste0,
-                data.frame(
-                  "(",
-                  errors$code,
-                  ") ",
-                  errors$message,
-                  stringsAsFactors = FALSE
-                )
+            errors <- result$error
+            su <- !is.na(result$error$code)
+            warning(
+              if (sum(su) > 1) "some texts were invalid: " else
+                "a text was invalid: ",
+              paste(
+                do.call(
+                  paste0,
+                  data.frame(
+                    "(",
+                    errors$code,
+                    ") ",
+                    errors$message,
+                    stringsAsFactors = FALSE
+                  )
+                ),
+                collapse = "; "
               ),
-              collapse = "; "
-            ),
-            call. = FALSE
-          )
+              call. = FALSE
+            )
+          }
         }
       }
       if (to_norming) {

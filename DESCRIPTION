@@ -1,7 +1,7 @@
 Package: receptiviti
 Type: Package
 Title: Text Analysis Through the 'Receptiviti' API
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: c(
     person("Receptiviti Inc.", role = c("fnd", "cph")),
     person("Kent", "English", role = "cre", email = "kenglish@receptiviti.com"),
@@ -14,16 +14,16 @@ Imports: curl, jsonlite, digest, progressr, stringi
 Suggests: testthat (>= 3.0.0), knitr, rmarkdown, future, arrow (>=
         9.0.0), dplyr, future.apply
 Config/testthat/edition: 3
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 URL: https://receptiviti.github.io/receptiviti-r/,
         https://github.com/Receptiviti/receptiviti-r
 BugReports: https://github.com/Receptiviti/receptiviti-r/issues
 Encoding: UTF-8
 NeedsCompilation: no
-Packaged: 2025-06-07 14:05:10 UTC; Admin
+Packaged: 2026-01-29 14:04:11 UTC; Admin
 Author: Receptiviti Inc. [fnd, cph],
   Kent English [cre],
   Micah Iserman [aut, ctr]
 Maintainer: Kent English <kenglish@receptiviti.com>
 Repository: CRAN
-Date/Publication: 2025-06-07 15:10:02 UTC
+Date/Publication: 2026-01-29 17:40:02 UTC
